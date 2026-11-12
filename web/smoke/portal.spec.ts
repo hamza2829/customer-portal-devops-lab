@@ -33,7 +33,11 @@ test('S01 signs a customer in through the web page', async ({ page }) => {
 
 test('S01 signs out and redirects from the dashboard', async ({ page }) => {
   await signIn(page, 'customer');
+  await expect(page).toHaveURL(/\/dashboard$/);
   await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+  expect((await page.context().cookies()).some(({ name }) => name === 'portal_session')).toBe(false);
+
   await page.goto('/dashboard');
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 });
