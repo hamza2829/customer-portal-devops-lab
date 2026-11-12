@@ -66,7 +66,28 @@ To remove the stack, stop the controller and run `terraform -chdir=infra destroy
 See the eight stories and their acceptance criteria in [REQUIREMENTS.md](REQUIREMENTS.md). Each test name contains its story ID. The workflow checks test coverage by story and uploads `portal-test-report` with JUnit XML, a case-by-case TSV and the generated mapping below.
 
 <!-- test-results:start -->
-The first Linux workflow run will populate this section.
+Results from [Linux Actions run 43184282623](https://github.com/hamza2829/customer-portal-devops-lab/actions/runs/43184282623).
+
+**95/95 tests passed.**
+
+| Suite | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| api-unit | 28 | 0 | 0 |
+| api-integration | 26 | 0 | 0 |
+| web-unit | 13 | 0 | 0 |
+| report-unit | 16 | 0 | 0 |
+| smoke | 12 | 0 | 0 |
+
+| Story | Tests by suite | Result |
+| --- | --- | --- |
+| S01 · Sign in and out | [api-unit](api/test/portal.unit.spec.ts) (4), [api-integration](api/test/portal.integration.spec.ts) (4), [web-unit](web/test/portal.spec.tsx) (1), [smoke](web/smoke/portal.spec.ts) (2) | Pass |
+| S02 · View my open orders | [api-unit](api/test/portal.unit.spec.ts) (1), [api-integration](api/test/portal.integration.spec.ts) (3), [web-unit](web/test/portal.spec.tsx) (2), [smoke](web/smoke/portal.spec.ts) (1) | Pass |
+| S03 · Download a monthly report | [api-unit](api/test/portal.unit.spec.ts) (5), [api-integration](api/test/portal.integration.spec.ts) (5), [web-unit](web/test/portal.spec.tsx) (1), [report-unit](report/tests/test_report.py) (6), [smoke](web/smoke/portal.spec.ts) (2) | Pass |
+| S04 · Manage customers | [api-unit](api/test/portal.unit.spec.ts) (1), [api-integration](api/test/portal.integration.spec.ts) (3), [web-unit](web/test/portal.spec.tsx) (2), [smoke](web/smoke/portal.spec.ts) (1) | Pass |
+| S05 · Manage orders | [api-unit](api/test/portal.unit.spec.ts) (2), [api-integration](api/test/portal.integration.spec.ts) (2), [web-unit](web/test/portal.spec.tsx) (2), [smoke](web/smoke/portal.spec.ts) (1) | Pass |
+| S06 · Restrict admin operations | [api-integration](api/test/portal.integration.spec.ts) (3), [web-unit](web/test/portal.spec.tsx) (1), [smoke](web/smoke/portal.spec.ts) (2) | Pass |
+| S07 · Reject invalid inputs | [api-unit](api/test/portal.unit.spec.ts) (13), [api-integration](api/test/portal.integration.spec.ts) (4), [web-unit](web/test/portal.spec.tsx) (4), [report-unit](report/tests/test_report.py) (9), [smoke](web/smoke/portal.spec.ts) (1) | Pass |
+| S08 · Check availability and API docs | [api-unit](api/test/portal.unit.spec.ts) (2), [api-integration](api/test/portal.integration.spec.ts) (2), [report-unit](report/tests/test_report.py) (1), [smoke](web/smoke/portal.spec.ts) (2) | Pass |
 <!-- test-results:end -->
 
 ## Limits
