@@ -1,0 +1,141 @@
+name: Portal CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Test, build and deploy to kind
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: portal
+          POSTGRES_PASSWORD: portal-demo-db
+          POSTGRES_DB: portal
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U portal -d portal -h 127.0.0.1"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            web/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: report/requirements*.txt
+
+      - name: Install dependencies
+        run: |
+          mkdir -p reports
+          npm ci --prefix api --no-audit --no-fund
+          npm ci --prefix web --no-audit --no-fund
+          python -m pip install -r report/requirements-dev.txt
+
+      - name: Lint
+        run: |
+          npm run lint --prefix api
+          npm run lint --prefix web
+          ruff check report
+
+      - name: Unit tests
+        env:
+          JEST_JUNIT_OUTPUT_DIR: ${{ github.workspace }}/reports
+        run: |
+          JEST_JUNIT_OUTPUT_NAME=api-unit.xml npm test --prefix api
+          JEST_JUNIT_OUTPUT_NAME=web-unit.xml npm test --prefix web
+          (cd report && python -m pytest --junitxml=../reports/report-unit.xml)
+
+      - name: Integration tests against PostgreSQL
+        env:
+          JEST_JUNIT_OUTPUT_DIR: ${{ github.workspace }}/reports
+          JEST_JUNIT_OUTPUT_NAME: api-integration.xml
+        run: npm run test:integration --prefix api
+
+      - name: Validate Compose and build three images
+        run: |
+          docker compose config --quiet
+          docker compose build
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+
+      - name: Install kind and its ingress controller
+        run: |
+          kind_release=https://kind.sigs.k8s.io/dl/v0.31.0
+          curl --fail --silent --show-error --location "$kind_release/kind-linux-amd64" -o /tmp/kind
+          sudo install /tmp/kind /usr/local/bin/kind
+
+          tmp="$(mktemp -d)"
+          (
+            cd "$tmp"
+            release=https://github.com/kubernetes-sigs/cloud-provider-kind/releases/download/v0.12.0
+            archive=cloud-provider-kind_0.12.0_linux_amd64.tar.gz
+            curl --fail --silent --show-error --location --remote-name "$release/$archive"
+            curl --fail --silent --show-error --location --remote-name "$release/cloud-provider-kind_0.12.0_checksums.txt"
+            grep " $archive$" cloud-provider-kind_0.12.0_checksums.txt | sha256sum --check
+            tar -xzf "$archive" cloud-provider-kind
+            sudo install cloud-provider-kind /usr/local/bin/cloud-provider-kind
+          )
+
+      - name: Deploy Terraform to kind and wait for ingress
+        run: |
+          bash scripts/deploy-kind.sh
+          sudo --preserve-env=HOME cloud-provider-kind >reports/ingress-controller.log 2>&1 &
+          portal_url="$(bash scripts/wait-ingress.sh)"
+          echo "PORTAL_BASE_URL=$portal_url" >> "$GITHUB_ENV"
+
+      - name: Smoke tests against the deployed stack
+        working-directory: web
+        env:
+          SMOKE_XML: ${{ github.workspace }}/reports/smoke.xml
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:smoke
+
+      - name: Collect Kubernetes diagnostics on failure
+        if: failure()
+        run: |
+          if kind get clusters | grep -qx portal; then
+            mkdir -p reports
+            kubectl --context kind-portal -n customer-portal get ingress,services,pods -o wide
+            kind export logs --name portal reports/kind
+          fi
+
+      - name: Generate story traceability report
+        if: always()
+        run: |
+          mkdir -p reports
+          result=0
+          python scripts/test-report.py reports || result=$?
+          cat reports/summary.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$result"
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-test-report
+          path: reports/
+          if-no-files-found: error
+          retention-days: 14

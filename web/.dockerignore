@@ -1,0 +1,8 @@
+node_modules
+.next
+test
+smoke
+test-results
+playwright.config.ts
+*.tsbuildinfo
+junit.xml

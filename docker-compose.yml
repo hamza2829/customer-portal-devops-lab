@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: portal-demo-db
+      POSTGRES_DB: portal
+    volumes:
+      - portal-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal -d portal -h 127.0.0.1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  report:
+    build: ./report
+    image: portal-report:lab
+    environment:
+      REPORT_TOKEN: lab-report-token
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  api:
+    build: ./api
+    image: portal-api:lab
+    environment:
+      DB_HOST: postgres
+      REPORT_URL: http://report:8000
+      POSTGRES_PASSWORD: portal-demo-db
+      JWT_SECRET: lab-jwt-signing-secret
+      REPORT_TOKEN: lab-report-token
+    depends_on:
+      postgres:
+        condition: service_healthy
+      report:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3001:3001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  web:
+    build: ./web
+    image: portal-web:lab
+    environment:
+      API_URL: http://api:3001
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  portal-db:
